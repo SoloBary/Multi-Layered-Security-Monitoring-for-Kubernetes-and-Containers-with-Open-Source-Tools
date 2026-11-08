@@ -563,7 +563,7 @@ PoC 2 is **not** the CanisterWorm technique. It exercises the same class of beha
 
 ## Author
 
-**Vasileios Siampos** ([@SoloBary](https://github.com/SoloBary)), Threat Detection & Response Analyst (L2 SOC)
+**Vasileios Siampos** ([@BΔRY](https://github.com/SoloBary)), Threat Detection & Response Analyst (L2 SOC)
 Bachelor's Thesis, Department of Information & Communication Systems Engineering, University of the Aegean
 Supervisor: Prof. Georgios Kambourakis
 
