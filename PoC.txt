@@ -289,13 +289,12 @@ kubectl port-forward svc/prometheus-grafana -n monitoring 3001:80
 # Default credentials: admin / admin
 
 # Import Falco Dashboard
-# Grafana UI → Dashboards → New → Import → Upload JSON
-# Select: grafana/falco-dashboard.json
-# Set datasource: Prometheus → Import
+# The Falco dashboard was built by hand on the falcosecurity_* metrics and
+# imported manually: Grafana UI → Dashboards → New → Import
+# (screenshots in grafana/).
 #
 # IMPORTANT: Dashboard ID 11914 from grafana.com is INCOMPATIBLE with Falco 0.38+
 # (metric prefix changed from falco_* to falcosecurity_*).
-# The custom dashboard in this repo uses the current metric names.
 
 # Useful Prometheus queries for Falco metrics:
 #   sum(falcosecurity_falco_rules_matches_total)
@@ -389,6 +388,19 @@ kubectl port-forward svc/kiali -n istio-system 20001:20001
 # Graph → Display → Security → lock icons = mTLS enforced
 
 # Generate traffic for Kiali visualization
+# health-check → kubernetes-goat-home-service (both in default).
+# This is the traffic shown in istio/kiali-traffic-graph-service-mesh.png.
+for i in $(seq 1 20); do
+  kubectl exec -n default \
+    $(kubectl get pod -n default -l app=health-check \
+      -o jsonpath='{.items[0].metadata.name}') \
+    -c health-check \
+    -- curl -s http://kubernetes-goat-home-service/ > /dev/null
+  sleep 1
+done
+
+# Cross-namespace variant: hunger-check (big-monolith) → metadata-db (default).
+# Run during development; the captured Kiali graph does not show this edge.
 for i in $(seq 1 20); do
   kubectl exec -n big-monolith \
     $(kubectl get pod -n big-monolith -o jsonpath='{.items[0].metadata.name}') \
