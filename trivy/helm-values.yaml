@@ -1,3 +1,2 @@
-USER-SUPPLIED VALUES:
 trivy:
   ignoreUnfixed: true
