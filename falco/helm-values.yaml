@@ -1,4 +1,3 @@
-USER-SUPPLIED VALUES:
 customRules:
   custom-rules.yaml: |-
     - list: known_drop_and_execute_containers
