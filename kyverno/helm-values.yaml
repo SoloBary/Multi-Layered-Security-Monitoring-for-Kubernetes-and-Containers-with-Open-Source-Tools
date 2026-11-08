@@ -1,4 +1,3 @@
-USER-SUPPLIED VALUES:
 admissionController:
   replicas: 1
 features:
