@@ -6,7 +6,7 @@ Result: 5.5%
 falcosecurity_falco_memory_rss_bytes / 1024 / 1024
 Result: 158MB
 
-# Syscall throughput — πόσα events επεξεργάζεται ανά δευτερόλεπτο
+# Syscall throughput — events processed per second
 rate(falcosecurity_scap_n_evts_total[1m])
 Result: 8823
 
@@ -15,7 +15,7 @@ sum(falcosecurity_scap_n_drops_buffer_total)
 Result: 0
 
 #Vulnerability Coverage (Trivy):
-bashkubectl get vulnerabilityreports -A -o custom-columns=\
+kubectl get vulnerabilityreports -A -o custom-columns=\
 "NAMESPACE:.metadata.namespace,\
 NAME:.metadata.name,\
 CRITICAL:.report.summary.criticalCount,\
