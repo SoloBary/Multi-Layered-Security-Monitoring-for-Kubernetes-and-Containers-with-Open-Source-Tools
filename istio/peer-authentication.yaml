@@ -1,0 +1,29 @@
+# Mutual TLS in STRICT mode for every namespace that carries a Kubernetes Goat workload.
+# A connection without a valid mesh identity (SPIFFE certificate issued by istiod)
+# cannot complete the handshake.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: default
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: big-monolith
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: secure-middleware
+spec:
+  mtls:
+    mode: STRICT
