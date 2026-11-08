@@ -30,7 +30,7 @@ The stack covers four points in a workload's lifecycle: pre-runtime image scanni
 
 The argument is that **no single tool is sufficient**, because each layer observes a different, structurally bounded part of the lifecycle. The evaluation shows the coverage is complementary rather than redundant: fileless execution from `/dev/shm` is invisible to scanning, admission and the mesh and is caught only by Falco, while pods that request host namespaces or run as root are refused at admission, which none of the other layers can do.
 
-The full installation reference is in [`PoC.txt`](PoC.txt). Evidence for each layer (screenshots, reports, alert output) lives in that layer's directory.
+The full installation reference is in [`PoC.txt`](PoC.txt). Evidence for each layer (screenshots, reports, alert output) lives in that layer's directory. The defence presentation is in [`Multi-Layered_Security_Monitoring_for_Kubernetes_and_Containers_with_Open_Source_Tools.pdf`](Multi-Layered_Security_Monitoring_for_Kubernetes_and_Containers_with_Open_Source_Tools.pdf).
 
 ---
 
@@ -199,6 +199,8 @@ Where the thesis technique differs from the tag on the Falco rule, both are give
 | 5 | T1613 Container and resource discovery | not recorded | token-authenticated `curl` to `https://kubernetes.default.svc/api/v1/namespaces/` | Contact K8S API Server From Container (community) | Notice | [`falco-attack5-k8s-api-lateral-movement.png`](falco/falco-attack5-k8s-api-lateral-movement.png) |
 
 The screenshot file names follow the order the scenarios were run in the session (`/dev/shm` first). The thesis numbers them by stage of the adversary progression.
+
+The service account token visible in `falco-attack3-serviceaccount-token.png` belongs to the lab's `kind` cluster, which no longer exists, so it cannot authenticate anywhere.
 
 **PoC 5:** the API server answers `403 Forbidden` for `system:serviceaccount:default:default`. The connection is detected, but it is Kubernetes RBAC, a control outside the four layers, that prevents the enumeration. Because the command also reads the token and uses `curl`, the two custom rules fire on it as well.
 
@@ -563,7 +565,7 @@ PoC 2 is **not** the CanisterWorm technique. It exercises the same class of beha
 
 ## Author
 
-**Vasileios Siampos** ([@BΔRY](https://github.com/SoloBary)), Threat Detection & Response Analyst (L2 SOC)
+**Vasileios Siampos** (BΔRY, [@SoloBary](https://github.com/SoloBary)), Threat Detection & Response Analyst (L2 SOC)
 Bachelor's Thesis, Department of Information & Communication Systems Engineering, University of the Aegean
 Supervisor: Prof. Georgios Kambourakis
 
