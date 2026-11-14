@@ -25,6 +25,12 @@ spec:
       message: "Privileged containers are not allowed."
       pattern:
         spec:
+          =(ephemeralContainers):
+          - =(securityContext):
+              =(privileged): "false"
+          =(initContainers):
+          - =(securityContext):
+              =(privileged): "false"
           containers:
           - =(securityContext):
               =(privileged): "false"
