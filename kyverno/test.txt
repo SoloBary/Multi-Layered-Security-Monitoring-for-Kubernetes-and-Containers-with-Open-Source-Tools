@@ -53,6 +53,7 @@ kubectl run test-latest --image=nginx:latest -n default
 #    rule require-limits failed at path /spec/containers/0/resources/limits/'
 
 # Test 3: hostNetwork requested
+# (Output captured during the thesis. The policy message now also names hostIPC.)
 kubectl run test-hostnet --image=nginx:1.25 -n default \
   --overrides='{"spec":{"hostNetwork":true,"containers":[{"name":"test","image":"nginx:1.25"}]}}'
 
