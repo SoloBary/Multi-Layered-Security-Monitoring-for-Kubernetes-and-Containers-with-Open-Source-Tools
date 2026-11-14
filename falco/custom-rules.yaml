@@ -15,7 +15,8 @@ customRules:
       desc: Detects reading of service account token from inside a container
       condition: >
         open_read and
-        fd.name startswith "/run/secrets/kubernetes.io/serviceaccount" and
+        (fd.name startswith "/run/secrets/kubernetes.io/serviceaccount" or
+         fd.name startswith "/var/run/secrets/kubernetes.io/serviceaccount") and
         container and
         not proc.name in (pause)
       output: >
