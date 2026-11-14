@@ -1,3 +1,5 @@
+# customRules here is superseded by falco/custom-rules.yaml (same key, passed second).
+# Kept as the earlier narrowing attempt described in the thesis.
 customRules:
   custom-rules.yaml: |-
     - list: known_drop_and_execute_containers
