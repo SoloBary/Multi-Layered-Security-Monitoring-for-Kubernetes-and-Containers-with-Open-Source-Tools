@@ -5,12 +5,45 @@ metadata:
 spec:
   validationFailureAction: Enforce
   rules:
+    # An image with no tag (e.g. "nginx") is pulled as :latest, so a tag is required first.
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - falco
+                - kube-system
+                - monitoring
+                - istio-system
+                - trivy-system
+                - kyverno
+      validate:
+        message: "An image tag is required. Pin images to a specific version tag."
+        pattern:
+          spec:
+            containers:
+              - image: "*:*"
     - name: block-latest-tag
       match:
         any:
           - resources:
               kinds:
                 - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - falco
+                - kube-system
+                - monitoring
+                - istio-system
+                - trivy-system
+                - kyverno
       validate:
         message: "Using 'latest' tag is not allowed. Pin images to a specific version tag."
         pattern:

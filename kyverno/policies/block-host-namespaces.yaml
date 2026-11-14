@@ -11,9 +11,20 @@ spec:
       - resources:
           kinds:
           - Pod
+    exclude:
+      any:
+      - resources:
+          namespaces:
+          - falco
+          - kube-system
+          - monitoring
+          - istio-system
+          - trivy-system
+          - kyverno
     validate:
-      message: "Host namespaces (hostNetwork, hostPID) are not allowed."
+      message: "Host namespaces (hostNetwork, hostPID, hostIPC) are not allowed."
       pattern:
         spec:
           =(hostNetwork): "false"
           =(hostPID): "false"
+          =(hostIPC): "false"

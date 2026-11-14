@@ -23,8 +23,15 @@ spec:
           - kyverno
     validate:
       message: "Containers must not run as root."
-      pattern:
-        spec:
+      # runAsNonRoot may be set once for the whole pod, or on every container.
+      anyPattern:
+      - spec:
+          securityContext:
+            runAsNonRoot: true
+          containers:
+          - =(securityContext):
+              =(runAsNonRoot): true
+      - spec:
           containers:
           - securityContext:
               runAsNonRoot: true
